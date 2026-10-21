@@ -5,13 +5,13 @@ import type { PollSummary, StreamRotation } from './types/twitch'
 
 type View = 'overview' | 'moderation' | 'rotation' | 'chat'
 
-const defaultBackendUrl = 'http://localhost:5071'
+const defaultBackendUrl = 'http://10.10.20.83:5071'
 const configuredApiBaseUrl = import.meta.env.VITE_TWITCH_API_BASE_URL ?? defaultBackendUrl
 
 function useLocalHttpBackend(url: string) {
   return url
-    .replace('https://localhost:7028', 'http://localhost:5071')
-    .replace('https://127.0.0.1:7028', 'http://127.0.0.1:5071')
+    .replace('https://10.10.20.83:7028', 'http://10.10.20.83:5071')
+    .replace('https://10.10.20.83:7028', 'http://10.10.20.83:5071')
 }
 
 const config = reactive({
@@ -83,13 +83,23 @@ function parseList(payload: unknown): unknown[] {
   return []
 }
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3 ) | 0x8;
+    return v.toString(16);  });  
+}
+
 function normalizePoll(raw: unknown): PollSummary {
   const choices = (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).choices)
     ? (raw as Record<string, unknown>).choices
     : []) as unknown[]
   const total = choices.reduce<number>((sum, choice) => sum + number(choice, ['votes', 'totalVotes'], 0), 0)
   return {
-    id: record(raw, ['id', 'pollId'], crypto.randomUUID()),
+    id: record(raw, ['id', 'pollId'], generateId()),
     title: record(raw, ['title', 'question'], 'Untitled poll'),
     status: record(raw, ['status', 'state'], 'UNKNOWN'),
     endsAt: record(raw, ['endedAt', 'endsAt', 'expiresAt']),
