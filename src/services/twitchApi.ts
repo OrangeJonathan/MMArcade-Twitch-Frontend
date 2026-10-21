@@ -145,6 +145,13 @@ export class TwitchApiClient {
     }).then(normalizeRotation)
   }
 
+  selectCurrentStreamer(currentStreamer: string) {
+    return this.request<RotationResponse>('api/twitch/rotation/current', {
+      method: 'PUT',
+      body: { currentStreamer },
+    }).then(normalizeRotation)
+  }
+
   advanceRotation() {
     return this.request<RotationResponse>('api/twitch/rotation/advance', { method: 'POST' }).then(normalizeRotation)
   }
