@@ -116,8 +116,10 @@ textarea { resize: vertical; min-height: 90px; }
 .toggle.on { color: var(--green); border-color: #3a664d; }
 .toggle.on i { background: var(--green); }
 .winner { padding: 18px; background: #25372d; border: 1px solid #3b6b4e; border-radius: 7px; color: var(--green); }
-.rotation-layout { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; margin-bottom: 18px; }
+.rotation-layout { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 18px; }
+.rotation-column { display: grid; gap: 18px; }
 .rotation-card { min-height: 320px; border-radius: 9px; padding: 32px; background: linear-gradient(140deg, #2b221e, #202223); border: 1px solid #583c32; display: flex; flex-direction: column; justify-content: center; }
+.rotation-card--my-turn { border-color: var(--orange); background: linear-gradient(140deg, #542106, #292020); box-shadow: 0 0 0 2px rgba(255, 90, 0, .2), 0 12px 30px rgba(255, 90, 0, .15); }
 .rotation-card > strong { font-size: clamp(2.2rem, 6vw, 4.8rem); letter-spacing: -.08em; line-height: .95; margin: 18px 0; }
 .rotation-card p { color: var(--muted); }
 .turn-track { display: flex; gap: 8px; margin-top: 30px; }
@@ -128,18 +130,30 @@ textarea { resize: vertical; min-height: 90px; }
 .presence-grid .selected { border-color: #4d785d; background: #202b24; }
 .presence-grid strong, .presence-grid small { display: block; margin-top: 8px; }
 .presence-grid small { color: var(--muted); }
-.chat-card { max-width: 900px; min-height: 500px; }
-.chat-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.mode-switch { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); }
-.mode-switch button { border: 0; border-radius: 5px; background: transparent; color: var(--muted); padding: 8px 11px; font-size: .78rem; font-weight: 700; }
-.mode-switch button.active { background: var(--card-soft); color: var(--text); }
-.chat-embed-card { max-width: 900px; padding: 14px; }
-.chat-embed-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
-.chat-embed-toolbar label { margin: 0; width: min(280px, 100%); }
-.active-streamer-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding: 16px 18px; border: 1px solid #71351f; border-radius: 8px; background: linear-gradient(100deg, #3a1608, #2d2020); }
-.active-streamer-banner strong { display: block; font-size: 1.35rem; }
-.shared-state { color: var(--orange); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.chat-embed { display: block; width: 100%; height: 650px; border: 0; border-radius: 6px; background: #18181b; }
+.streamer-login-card { min-height: auto; }
+.skip-stats-card { margin-bottom: 18px; }
+.skip-stats-intro { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: -10px 0 18px; }
+.skip-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.skip-stats-grid > div { padding: 16px; background: var(--card-soft); border-radius: 7px; }
+.skip-stats-grid span, .skip-stats-grid small { display: block; color: var(--muted); }
+.skip-stats-grid strong { display: block; margin: 8px 0 3px; font-size: 1.5rem; }
+.skip-stats-grid small { font-size: .75rem; }
+.rotation-settings { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; }
+.rotation-settings label { margin: 0; }
+.rotation-settings .button { margin-bottom: 16px; }
+.engagement-stat-grid { grid-template-columns: repeat(3, 1fr); }
+.stream-session-banner { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; padding: 16px 18px; border: 1px solid #3a664d; border-radius: 8px; background: #202b24; }
+.stream-session-banner strong { color: var(--text); }
+.stream-session-banner small { margin-left: auto; color: var(--muted); }
+.engagement-chart-card, .engagement-table-card { margin-bottom: 18px; }
+.engagement-chart { display: flex; align-items: end; gap: 2px; height: 230px; padding: 18px 0 0; border-bottom: 1px solid var(--line); }
+.engagement-bar { display: flex; align-items: end; flex: 1; height: 100%; min-width: 2px; }
+.engagement-bar i { display: block; width: 100%; min-height: 3px; border-radius: 3px 3px 0 0; background: var(--orange); opacity: .8; }
+.engagement-bar:hover i { opacity: 1; background: var(--green); }
+.engagement-table { overflow-x: auto; }
+.engagement-table__row { display: grid; grid-template-columns: 1.2fr repeat(6, 1fr); gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); min-width: 650px; }
+.engagement-table__row span:not(:first-child) { text-align: right; }
+.engagement-table__header { color: var(--muted); font-size: .75rem; font-weight: 700; }
 @media (max-width: 1050px) { .module-grid { grid-template-columns: 1fr 1fr; } .module-card--featured { grid-column: 1 / -1; } .overview-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .sidebar { width: 72px; flex-basis: 72px; padding: 20px 10px; } .brand { padding: 0 9px 30px; } .brand > div, .nav button:not(.active)::after, .nav button { font-size: 0; } .nav button span { font-size: 1.1rem; } .nav button { justify-content: center; } .main { padding: 28px 22px 44px; } }
-@media (max-width: 650px) { .topbar, .hero-strip, .section-heading { display: block; } .topbar-actions { margin-top: 20px; } .topbar-actions input { flex: 1; width: auto; } .stat-grid, .content-grid, .rotation-layout, .module-grid, .overview-grid { grid-template-columns: 1fr; } .module-card--featured { grid-column: auto; } .snapshot-list { grid-template-columns: 1fr; } .hero-date { margin-top: 30px; } .presence-grid { grid-template-columns: 1fr; } }
+@media (max-width: 650px) { .topbar, .hero-strip, .section-heading { display: block; } .topbar-actions { margin-top: 20px; } .topbar-actions input { flex: 1; width: auto; } .stat-grid, .content-grid, .rotation-layout, .module-grid, .overview-grid, .engagement-stat-grid { grid-template-columns: 1fr; } .module-card--featured { grid-column: auto; } .snapshot-list, .skip-stats-grid { grid-template-columns: 1fr; } .hero-date { margin-top: 30px; } .presence-grid, .rotation-settings { grid-template-columns: 1fr; } .rotation-settings .button { margin-bottom: 0; } .skip-stats-intro { align-items: flex-start; flex-direction: column; } }

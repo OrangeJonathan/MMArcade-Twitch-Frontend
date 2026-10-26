@@ -33,3 +33,34 @@ export interface StreamRotation {
   durationMinutes: number
   isRunning: boolean
 }
+
+export interface SkipStatistics {
+  turnNumber: number
+  viewerCount: number
+  zelda: GameVoteStatistics
+  stellarBlade: GameVoteStatistics
+}
+
+export interface GameVoteStatistics {
+  count: number
+  uniqueViewers: number
+  percentage: number
+}
+
+export interface EngagementSnapshot {
+  streamId: string
+  timestamp: string
+  viewerCount: number
+  chatMessages: number
+  uniqueChatters: number
+  activeChatters: number
+  casualChatters: number
+  passiveViewers: number
+  activeChattersPercentage: number
+}
+
+export interface EngagementResponse {
+  currentStreamId: string | null
+  current: EngagementSnapshot | null
+  history: EngagementSnapshot[]
+}

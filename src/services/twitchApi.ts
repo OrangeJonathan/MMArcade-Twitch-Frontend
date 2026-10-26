@@ -1,4 +1,4 @@
-import type { CreatePollRequest, StreamRotation } from '../types/twitch'
+import type { CreatePollRequest, EngagementResponse, SkipStatistics, StreamRotation } from '../types/twitch'
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: BodyInit | object
@@ -130,6 +130,22 @@ export class TwitchApiClient {
 
   getRotation() {
     return this.request<RotationResponse>('api/twitch/rotation').then(normalizeRotation)
+  }
+
+  getSkipStatistics(broadcasterId: string) {
+    const url = new URL(buildUrl(this.baseUrl, 'api/twitch/skip-stats'))
+    url.searchParams.set('broadcasterId', broadcasterId)
+    return this.request<SkipStatistics>(url.pathname + url.search)
+  }
+
+  getEngagement(days = 30) {
+    const url = new URL(buildUrl(this.baseUrl, 'api/twitch/engagement'))
+    url.searchParams.set('days', String(days))
+    return this.request<EngagementResponse>(url.pathname + url.search)
+  }
+
+  resetSkipStatistics() {
+    return this.request<void>('api/twitch/skip-stats/reset', { method: 'POST' })
   }
 
   updateRotation(rotation: Partial<StreamRotation>) {
