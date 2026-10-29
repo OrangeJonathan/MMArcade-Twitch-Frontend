@@ -3,11 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { TwitchApiClient } from './services/twitchApi'
 import type { EngagementResponse, PollSummary, SkipStatistics, StreamRotation } from './types/twitch'
 
-type View = 'overview' | 'moderation' | 'rotation' | 'engagement'
+type View = 'overview' | 'director' | 'multistream' | 'engagement'
 
 
-// Laptop
-const defaultBackendUrl = 'http://192.168.4.73:5071'
+const defaultBackendUrl = `http://${window.location.hostname}:5071`
 
 // Arcade Dome
 // const defaultBackendUrl = 'http://10.10.20.83:5071'
@@ -16,7 +15,6 @@ const configuredApiBaseUrl = import.meta.env.VITE_TWITCH_API_BASE_URL ?? default
 // Laptop
 function useLocalHttpBackend(url: string) {
   return url
-    .replace('https://192.168.4.73:7028', 'http://192.168.4.73:5071')
     .replace('https://192.168.4.73:7028', 'http://192.168.4.73:5071')
 }
 
@@ -30,7 +28,12 @@ function useLocalHttpBackend(url: string) {
 const config = reactive({
   apiBaseUrl: useLocalHttpBackend(configuredApiBaseUrl),
   broadcasterId: '876318030',
+  chatChannel: 'mmarcadebnl',
 })
+const isObsOverlay = typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/obs-overlay'
+const obsStreamerName = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search).get('streamer')?.trim() ?? ''
+  : ''
 const modules = reactive({
   streamSwitchEnabled: true,
 })
@@ -53,8 +56,9 @@ const streamerName = ref('')
 const skipStatistics = ref<SkipStatistics>({
   turnNumber: 0,
   viewerCount: 0,
-  zelda: { count: 0, uniqueViewers: 0, percentage: 0 },
-  stellarBlade: { count: 0, uniqueViewers: 0, percentage: 0 },
+  count: 0,
+  uniqueViewers: 0,
+  percentage: 0,
 })
 const engagement = ref<EngagementResponse>({ currentStreamId: null, current: null, history: [] })
 let pollRefreshTimer: number | undefined
@@ -74,6 +78,10 @@ const winners = computed(() => {
 })
 const latestCompletedPoll = computed(() => polls.value.find((poll) => poll.status.toLowerCase() !== 'active') ?? null)
 const loggedInStreamer = computed(() => streamerName.value.trim())
+const obsIsActiveStreamer = computed(() =>
+  Boolean(obsStreamerName) &&
+  obsStreamerName.toLowerCase() === rotation.value.activeStreamer.trim().toLowerCase(),
+)
 const isMyTurn = computed(() =>
   Boolean(loggedInStreamer.value) &&
   loggedInStreamer.value.toLowerCase() === rotation.value.activeStreamer.trim().toLowerCase(),
@@ -82,6 +90,15 @@ const engagementHistory = computed(() => engagement.value.history.slice(-96))
 const engagementMaxViewers = computed(() =>
   Math.max(...engagementHistory.value.map((snapshot) => snapshot.viewerCount), 1),
 )
+const twitchChatUrl = computed(() => {
+  const channel = encodeURIComponent(config.chatChannel.trim().replace(/^#/, '').toLowerCase())
+  const parent = encodeURIComponent(typeof window === 'undefined' ? 'localhost' : window.location.hostname)
+  return `https://www.twitch.tv/embed/${channel}/chat?parent=${parent}&darkpopout`
+})
+const isIpAddress = computed(() => {
+  const hostname = typeof window === 'undefined' ? 'localhost' : window.location.hostname
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+})
 
 function record(value: unknown, keys: string[], fallback = ''): string {
   if (!value || typeof value !== 'object') return fallback
@@ -351,6 +368,15 @@ function formatTime(value: string) {
 }
 
 onMounted(() => {
+  if (isObsOverlay) {
+    document.body.classList.add('obs-page')
+    void refreshRotation()
+    rotationRefreshTimer = window.setInterval(() => {
+      void refreshRotation()
+    }, 2000)
+    return
+  }
+
   modules.streamSwitchEnabled = localStorage.getItem('mm-arcade-stream-switch-enabled') !== 'false'
   streamerName.value = localStorage.getItem('mm-arcade-streamer-name') ?? ''
   void loadData()
@@ -369,6 +395,7 @@ onMounted(() => {
   void refreshEngagement()
 })
 onBeforeUnmount(() => {
+  document.body.classList.remove('obs-page')
   if (pollRefreshTimer !== undefined) {
     window.clearInterval(pollRefreshTimer)
   }
@@ -385,21 +412,34 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="isObsOverlay" class="obs-overlay" role="status" aria-live="polite">
+    <div class="obs-overlay__accent"></div>
+    <div class="obs-overlay__content" :class="{ active: obsIsActiveStreamer, inactive: Boolean(obsStreamerName) && !obsIsActiveStreamer }">
+      <span class="kicker">MM ARCADE · LIVE ROTATION</span>
+      <p class="obs-overlay__label">NOW LIVE</p>
+      <strong v-if="rotation.activeStreamer">{{ rotation.activeStreamer }}</strong>
+      <strong v-else class="obs-overlay__loading">Connecting...</strong>
+      <span v-if="obsStreamerName" class="obs-overlay__status" :class="{ active: obsIsActiveStreamer, inactive: !obsIsActiveStreamer }">
+        {{ obsIsActiveStreamer ? 'YOUR TURN' : `Waiting for ${rotation.activeStreamer}` }}
+      </span>
+    </div>
+  </div>
+
+  <div v-else class="app-shell">
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">M</span><div><strong>Arcade Control</strong><small>STREAM OPERATIONS</small></div></div>
       <nav class="nav">
         <button v-for="item in [
           ['overview', 'Overview', '⌂'],
-          ['moderation', 'Moderation', '◈'],
-          ['rotation', 'Stream switch', '↻'],
+          ['director', 'Director', '◈'],
+          ['multistream', 'Multistream', '↻'],
           ['engagement', 'Engagement', '◉'],
         ]" :key="item[0]" :class="{ active: view === item[0] }" @click="view = item[0] as View"><span>{{ item[2] }}</span>{{ item[1] }}</button>
       </nav>
     </aside>
 
     <main class="main">
-      <header class="topbar"><div><p class="kicker">MEDIA MARKT ARCADE</p><h1>{{ view === 'overview' ? 'Good evening, operator.' : view === 'moderation' ? 'Moderation desk' : view === 'rotation' ? 'Stream rotation' : 'Stream engagement' }}</h1></div><div class="topbar-actions"><input v-model="config.broadcasterId" placeholder="Broadcaster ID" /><button class="button button-primary" :disabled="isBusy" @click="loadData">Refresh</button></div></header>
+      <header class="topbar"><div><p class="kicker">MEDIA MARKT ARCADE</p><h1>{{ view === 'overview' ? 'Good evening, operator.' : view === 'director' ? 'Director' : view === 'multistream' ? 'Multistream' : 'Stream engagement' }}</h1></div><div class="topbar-actions"><input v-model="config.broadcasterId" placeholder="Broadcaster ID" /><button class="button button-primary" :disabled="isBusy" @click="loadData">Refresh</button></div></header>
       <div v-if="announcement" class="announcement" :class="`announcement--${announcement.type}`" role="status">
         <strong>{{ announcement.type === 'rotation' ? 'STREAM SWITCH' : 'POLL RESULT' }}</strong>
         <span>{{ announcement.message }}</span>
@@ -410,24 +450,29 @@ onBeforeUnmount(() => {
       <template v-if="view === 'overview'">
         <section class="section-heading overview-heading"><div><p class="kicker">STREAM WORKSPACE</p><h2>Choose the tools for this stream.</h2><p class="muted">Keep the control room focused on the modules you actually need today.</p></div><div class="hero-date">{{ new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }) }}</div></section>
         <section class="module-grid">
-          <article class="module-card module-card--featured"><div class="module-icon">◈</div><div><span class="kicker">MODERATION</span><h3>Polls</h3><p>Create polls and see live results.</p></div><button class="button button-primary" @click="view = 'moderation'">Open moderation</button></article>
-          <article class="module-card" :class="{ 'module-card--disabled': !modules.streamSwitchEnabled }"><div class="module-card__top"><div class="module-icon">↻</div><span class="status-pill" :class="{ green: modules.streamSwitchEnabled }">{{ modules.streamSwitchEnabled ? 'ENABLED' : 'DISABLED' }}</span></div><span class="kicker">OPTIONAL MODULE</span><h3>Stream Switch</h3><p>Let two streamers share a turn and notify everyone when the active streamer changes.</p><div class="module-actions"><button class="button" @click="toggleStreamSwitch">{{ modules.streamSwitchEnabled ? 'Disable for this stream' : 'Enable for this stream' }}</button><button class="text-button" :disabled="!modules.streamSwitchEnabled" @click="view = 'rotation'">Open module →</button></div></article>
+          <article class="module-card module-card--featured"><div class="module-icon">◈</div><div><span class="kicker">DIRECTOR</span><h3>Director controls</h3><p>Poll the audience, check !skip and change the active streamer.</p></div><button class="button button-primary" @click="view = 'director'">Open Director</button></article>
+          <article class="module-card" :class="{ 'module-card--disabled': !modules.streamSwitchEnabled }"><div class="module-card__top"><div class="module-icon">↻</div><span class="status-pill" :class="{ green: modules.streamSwitchEnabled }">{{ modules.streamSwitchEnabled ? 'ENABLED' : 'DISABLED' }}</span></div><span class="kicker">STREAMER VIEW</span><h3>Multistream</h3><p>Show the active streamer, streamer login and Twitch chat on one screen.</p><div class="module-actions"><button class="button" @click="toggleStreamSwitch">{{ modules.streamSwitchEnabled ? 'Disable for this stream' : 'Enable for this stream' }}</button><button class="text-button" :disabled="!modules.streamSwitchEnabled" @click="view = 'multistream'">Open Multistream →</button></div></article>
         </section>
-        <section class="overview-grid"><article class="card"><div class="card-header"><div><span class="kicker">STREAM SNAPSHOT</span><h3>Right now</h3></div><button class="text-button" :disabled="isBusy" @click="loadData">Refresh</button></div><div class="snapshot-list"><div><span>Poll</span><strong>{{ activePoll ? 'Running' : 'No active poll' }}</strong><small>{{ activePoll?.title || 'Ready for the next audience question' }}</small></div><div><span>Stream Switch</span><strong>{{ modules.streamSwitchEnabled ? rotation.activeStreamer : 'Module disabled' }}</strong><small>{{ modules.streamSwitchEnabled ? 'Shared state is synced between clients' : 'Enable it from the module card above' }}</small></div></div></article><article class="card"><div class="card-header"><div><span class="kicker">NEXT ACTIONS</span><h3>Quick start</h3></div></div><div class="quick-actions"><button @click="view = 'moderation'">Start a poll <span>→</span></button><button :disabled="!modules.streamSwitchEnabled" @click="view = 'rotation'">Configure Stream Switch <span>→</span></button></div></article></section>
+        <section class="overview-grid"><article class="card"><div class="card-header"><div><span class="kicker">STREAM SNAPSHOT</span><h3>Right now</h3></div><button class="text-button" :disabled="isBusy" @click="loadData">Refresh</button></div><div class="snapshot-list"><div><span>Poll</span><strong>{{ activePoll ? 'Running' : 'No active poll' }}</strong><small>{{ activePoll?.title || 'Ready for the next audience question' }}</small></div><div><span>Multistream</span><strong>{{ modules.streamSwitchEnabled ? rotation.activeStreamer : 'Module disabled' }}</strong><small>{{ modules.streamSwitchEnabled ? 'Shared state is synced between clients' : 'Enable it from the module card above' }}</small></div></div></article><article class="card"><div class="card-header"><div><span class="kicker">NEXT ACTIONS</span><h3>Quick start</h3></div></div><div class="quick-actions"><button @click="view = 'director'">Open Director <span>→</span></button><button :disabled="!modules.streamSwitchEnabled" @click="view = 'multistream'">Open Multistream <span>→</span></button></div></article></section>
       </template>
 
-      <template v-else-if="view === 'moderation'">
-        <section class="section-heading"><div><p class="kicker">MODERATION</p><h2>Make the call quickly.</h2></div><span class="muted">Polls are applied to Twitch immediately.</span></section>
+      <template v-else-if="view === 'director'">
+        <section class="section-heading"><div><p class="kicker">DIRECTOR</p><h2>Make the call quickly.</h2></div><span class="muted">Poll, review !skip and switch manually.</span></section>
         <section class="content-grid"><article class="card"><div class="card-header"><div><span class="kicker">NEW POLL</span><h3>Ask the audience</h3></div></div><label>Question<input v-model="pollForm.title" placeholder="Which streamer should be on screen?" /></label><label>Choices <small>one per line</small><textarea v-model="pollForm.choices" rows="4"></textarea></label><label>Duration in seconds<input v-model.number="pollForm.duration" type="number" min="15" max="1800" /></label><button class="button button-primary full" :disabled="isBusy" @click="createPoll">Start poll</button></article><article class="card"><div class="card-header"><div><span class="kicker">CURRENT POLL</span><h3>{{ activePoll?.title || 'No active poll' }}</h3></div><button v-if="activePoll" class="button button-danger" @click="endPoll">End poll</button></div><div v-if="activePoll" class="result-list"><div v-for="choice in activePoll.choices" :key="choice.title" class="result-row"><div class="result-label"><span>{{ choice.title }}</span><strong>{{ choice.votes }} <small>{{ choice.percentage }}%</small></strong></div><div class="bar"><i :style="{ width: `${choice.percentage}%` }"></i></div></div></div><div v-else-if="winners.length" class="winner">Winner<span v-for="winner in winners" :key="winner.title"><strong>{{ winner.title }}</strong></span></div><div v-else class="empty">Your latest poll results will appear here.</div></article></section>
+        <section class="director-controls">
+          <article class="card director-active-card"><div class="card-header"><div><span class="kicker">ACTIVE STREAMER</span><h3>{{ rotation.activeStreamer }}</h3></div><span class="status-pill green">LIVE</span></div><p class="muted">This is the streamer currently shown to viewers.</p><button class="button button-primary full" :disabled="!modules.streamSwitchEnabled" @click="advanceRotation">Switch streamer</button></article>
+          <article class="card skip-stats-card"><div class="card-header"><div><span class="kicker">!SKIP COUNTER</span><h3>Chat wants a change?</h3></div><span class="status-pill">MANUAL</span></div><div class="skip-stats-grid"><div><span>Viewers</span><strong>{{ skipStatistics.viewerCount }}</strong><small>Current viewers</small></div><div><span>!skip</span><strong>{{ skipStatistics.count }}</strong><small>{{ skipStatistics.uniqueViewers }} unique · {{ skipStatistics.percentage }}%</small></div></div><button class="button button-danger full" @click="resetSkipStatistics">Reset votes</button></article>
+        </section>
+        <section class="card director-settings"><div><span class="kicker">MULTISTREAM SETUP</span><h3>Two-streamer setup</h3></div><div class="rotation-settings"><label>Streamer one<input v-model="rotationForm.streamerOne" :placeholder="rotation.streamerOne" /></label><label>Streamer two<input v-model="rotationForm.streamerTwo" :placeholder="rotation.streamerTwo" /></label><label>Minutes per turn<input v-model.number="rotationForm.durationMinutes" type="number" min="1" max="240" /></label><button class="button button-primary" @click="saveRotation">Save shared state</button></div></section>
       </template>
 
-      <template v-else-if="view === 'rotation'">
-        <section class="section-heading"><div><p class="kicker">OPTIONAL MODULE · STREAM SWITCH</p><h2>Everyone sees the same turn.</h2><p class="muted">Log in on each streamer screen so the active turn is unmistakable.</p></div><div class="module-actions"><button class="button" @click="toggleStreamSwitch">{{ modules.streamSwitchEnabled ? 'Disable module' : 'Enable module' }}</button><button class="button button-primary" :disabled="!modules.streamSwitchEnabled" @click="advanceRotation">Switch streamer</button></div></section>
+      <template v-else-if="view === 'multistream'">
+        <section class="section-heading"><div><p class="kicker">MULTISTREAM</p><h2>Everyone sees the same turn.</h2><p class="muted">Your streamer identity, the active streamer and Twitch chat in one view.</p></div><div class="module-actions"><button class="button" @click="toggleStreamSwitch">{{ modules.streamSwitchEnabled ? 'Disable module' : 'Enable module' }}</button></div></section>
         <div v-if="!modules.streamSwitchEnabled" class="module-disabled-banner"><strong>Stream Switch is disabled.</strong><span>Enable the module to configure turns and notify the streamers.</span></div>
         <section class="rotation-layout">
           <div class="rotation-column">
-            <article class="rotation-card" :class="{ 'rotation-card--my-turn': isMyTurn }">
-              <span class="live-label"><i></i> {{ isMyTurn ? 'YOUR TURN' : 'CURRENTLY ON' }}</span>
+            <article class="rotation-card" :class="{ 'rotation-card--my-turn': isMyTurn, 'rotation-card--not-my-turn': Boolean(loggedInStreamer) && !isMyTurn }">
+              <span class="live-label" :class="{ 'live-label--red': Boolean(loggedInStreamer) && !isMyTurn }"><i></i> {{ isMyTurn ? 'YOUR TURN' : 'CURRENTLY ON' }}</span>
               <strong>{{ isMyTurn ? loggedInStreamer : rotation.activeStreamer }}</strong>
               <p v-if="isMyTurn">You are live now. The other screen is on standby.</p>
               <p v-else-if="loggedInStreamer">Stand by — {{ rotation.activeStreamer }} is live now.</p>
@@ -443,16 +488,11 @@ onBeforeUnmount(() => {
             </article>
           </div>
         </section>
-        <section class="card skip-stats-card">
-          <div class="card-header"><div><span class="kicker">CHAT DECISION SUPPORT</span><h3>Should chat skip this turn?</h3></div><span class="status-pill">MANUAL SWITCH</span></div>
-          <div class="skip-stats-intro"><p class="muted">The numbers reset when the active streamer changes. This never switches automatically.</p><button class="button button-danger" @click="resetSkipStatistics">Reset votes</button></div>
-          <div class="skip-stats-grid">
-            <div><span>Viewers</span><strong>{{ skipStatistics.viewerCount }}</strong><small>Current Twitch viewers</small></div>
-            <div><span>!zelda</span><strong>{{ skipStatistics.zelda.count }}</strong><small>{{ skipStatistics.zelda.uniqueViewers }} unique · {{ skipStatistics.zelda.percentage }}%</small></div>
-            <div><span>!stellarblade</span><strong>{{ skipStatistics.stellarBlade.count }}</strong><small>{{ skipStatistics.stellarBlade.uniqueViewers }} unique · {{ skipStatistics.stellarBlade.percentage }}%</small></div>
-          </div>
+        <section class="multistream-chat card">
+          <div class="card-header"><div><span class="kicker">TWITCH CHAT</span><h3>{{ config.chatChannel }}</h3></div><span class="muted">Live conversation</span></div>
+          <div v-if="!isIpAddress" class="multistream-chat__frame"><iframe :src="twitchChatUrl" title="Twitch chat" allow="clipboard-write"></iframe></div>
+          <div v-else class="multistream-chat__blocked"><strong>Chat embed needs a hostname.</strong><p>Open the dashboard through a hostname such as <b>mmarcade.test</b> instead of a raw IP address.</p></div>
         </section>
-        <section class="card streamer-presence"><div><span class="kicker">ROTATION SETTINGS</span><h3>Two-streamer setup</h3></div><div class="rotation-settings"><label>Streamer one<input v-model="rotationForm.streamerOne" :placeholder="rotation.streamerOne" /></label><label>Streamer two<input v-model="rotationForm.streamerTwo" :placeholder="rotation.streamerTwo" /></label><label>Minutes per turn<input v-model.number="rotationForm.durationMinutes" type="number" min="1" max="240" /></label><button class="button button-primary" @click="saveRotation">Save shared state</button></div><div class="presence-grid"><div :class="{ selected: rotation.activeStreamer === rotation.streamerOne }"><strong>{{ rotation.streamerOne }}</strong><small>{{ rotation.activeStreamer === rotation.streamerOne ? 'On stream now' : 'Stand by' }}</small></div><div :class="{ selected: rotation.activeStreamer === rotation.streamerTwo }"><strong>{{ rotation.streamerTwo }}</strong><small>{{ rotation.activeStreamer === rotation.streamerTwo ? 'On stream now' : 'Stand by' }}</small></div></div></section>
       </template>
 
       <template v-else-if="view === 'engagement'">

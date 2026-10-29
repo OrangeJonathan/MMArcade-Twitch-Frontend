@@ -37,11 +37,6 @@ export interface StreamRotation {
 export interface SkipStatistics {
   turnNumber: number
   viewerCount: number
-  zelda: GameVoteStatistics
-  stellarBlade: GameVoteStatistics
-}
-
-export interface GameVoteStatistics {
   count: number
   uniqueViewers: number
   percentage: number
